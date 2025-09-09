@@ -1,0 +1,6 @@
+{
+  "python.defaultInterpreterPath": "",
+  "python.terminal.activateEnvironment": true,
+  "terminal.integrated.env.linux": { "CONDA_DEFAULT_ENV": "helios-gpu-118" },
+  "python.analysis.autoImportCompletions": true
+}
