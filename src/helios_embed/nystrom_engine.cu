@@ -1,16 +1,12 @@
-// --- START OF FILE nystrom_engine/nystrom_engine.cu ---
+// --- START OF FILE src/helios_embed/nystrom_engine.cu (Version 1.2.0 - Final) ---
 #include "nystrom_engine.h"
 #include <ATen/ATen.h>
 
-// This file contains the stateless, ATen-backed Nystrom feature embedding.
-// It is our validated, bit-perfect foundation.
+// The validation function is unchanged and remains robust.
 void validate_inputs_stateless(const at::Tensor& X, const at::Tensor& Lm) {
     TORCH_CHECK(X.is_cuda() && Lm.is_cuda(), "Input tensors must reside on a CUDA device.");
-    TORCH_CHECK(Lm.is_cuda(), "Landmarks tensor Lm must reside on a CUDA device.");
     TORCH_CHECK(X.dtype() == torch::kFloat32 && Lm.dtype() == torch::kFloat32, "Input tensors must be of type float32.");
-    TORCH_CHECK(Lm.dtype() == torch::kFloat32, "Landmarks tensor Lm must be of type float32.");
     TORCH_CHECK(X.dim() == 2 && Lm.dim() == 2, "Input tensors must be 2-dimensional.");
-    TORCH_CHECK(Lm.dim() == 2, "Landmarks tensor Lm must be 2-dimensional ([m, D]).");
     if (Lm.size(0) <= 0) {
         throw std::runtime_error("Landmarks tensor must have at least one landmark (m > 0).");
     }
@@ -19,6 +15,8 @@ void validate_inputs_stateless(const at::Tensor& X, const at::Tensor& Lm) {
     TORCH_CHECK(torch::isfinite(Lm).all().item<bool>(), "Landmarks tensor must not contain NaN or Inf values.");
 }
 
+// --- THIS IS THE CRITICAL UPGRADE ---
+// The core `build` function is now permanently upgraded to use the faster hybrid kernel.
 torch::Tensor compute_rkhs_embedding_nystrom(
     const torch::Tensor& X_in,
     const torch::Tensor& landmarks_in,
@@ -26,29 +24,41 @@ torch::Tensor compute_rkhs_embedding_nystrom(
     float initial_ridge)
 {
     torch::NoGradGuard no_grad;
-    TORCH_CHECK(landmarks_in.is_contiguous(), "Landmarks tensor must be contiguous.");
+
+    // Handle empty input edge case
     if (X_in.size(0) == 0) {
         return torch::empty({0, landmarks_in.size(0)}, X_in.options());
     }
+    
+    // Use our single, robust validation function
     validate_inputs_stateless(X_in, landmarks_in);
+
     auto X = X_in.contiguous();
     auto Lm = landmarks_in.contiguous();
     const auto m = Lm.size(0);
-    auto K_nm = at::exp(-gamma * at::cdist(X, Lm).pow(2));
-    auto K_mm = at::exp(-gamma * at::cdist(Lm, Lm).pow(2));
+
+    // Step 1: Compute K_nm and K_mm using our new, faster hybrid kernel
+    auto K_nm = rbf_kernel_hybrid_cuda(X, Lm, gamma);
+    auto K_mm = rbf_kernel_hybrid_cuda(Lm, Lm, gamma);
+
+    // Step 2: Perform the linear algebra (Cholesky solve or pinv fallback)
+    // This logic remains the same, but it now operates on the faster-computed kernel matrices.
     float current_ridge = initial_ridge;
-    for (int i = 0; i < 3; ++i) {
+    for (int i = 0; i < 3; ++i) { // Adaptive ridge retry loop
         auto K_mm_reg = K_mm + torch::eye(m, X.options()) * current_ridge;
         try {
             auto L_factor = at::linalg_cholesky(K_mm_reg, false);
             auto Z = at::linalg_solve_triangular(L_factor, K_nm.t(), false);
             return Z.t().contiguous();
         } catch (const c10::Error& e) {
+            // If Cholesky fails, increase ridge and retry. This is our robust stability path.
             current_ridge *= 10.0f;
         }
     }
+
+    // Fallback to pseudo-inverse if Cholesky repeatedly fails (rare, for ill-conditioned matrices)
     auto K_mm_reg_final = K_mm + torch::eye(m, X.options()) * current_ridge;
     auto K_mm_inv_sqrt = at::linalg_pinv(K_mm_reg_final).sqrt();
     return at::mm(K_nm, K_mm_inv_sqrt).contiguous();
 }
-// --- END OF FILE ---
+// --- END OF FILE src/helios_embed/nystrom_engine.cu (Version 1.2.0 - Final) ---
