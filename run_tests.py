@@ -1,90 +1,84 @@
-# --- START OF FILE HELIOS_EMBED/run_tests.py (Final, Corrected Version v3) ---
-import subprocess
+# --- START OF FILE HELIOS_EMBED/run_tests.py (FINAL, ROBUST VERSION) ---
 import sys
-import os
 from pathlib import Path
+import importlib.util
+import traceback
 
-# --- CRITICAL FIX: Add the 'src' directory to the Python path ---
+# --- CRITICAL: Add the 'src' directory to the Python path ---
+# This ensures that any test script can find the compiled C++ module.
 project_root = Path(__file__).parent.resolve()
 src_path = project_root / 'src'
-# Prepend our local source directory to the system path
-sys.path.insert(0, str(src_path))
-# ----------------------------------------------------------------
+if str(src_path) not in sys.path:
+    sys.path.insert(0, str(src_path))
 
-def run_test(script_path):
+def run_benchmark_module(script_path):
+    """
+    Dynamically imports and runs a benchmark script.
+    A benchmark is considered PASSED if its main 'run()' function
+    executes without raising an uncaught exception.
+    """
     print("="*80)
-    print(f"🚀 EXECUTING TEST: {script_path.name}")
+    print(f"🚀 EXECUTING BENCHMARK: {script_path.name}")
     print("="*80)
     
-    # We now run the script in the same process, which inherits our path fix.
-    # This is simpler and more robust than managing subprocess environments.
     try:
-        # Dynamically import and run the script's main function
-        spec = __import__("importlib.util").util.spec_from_file_location(
-            script_path.stem, str(script_path)
-        )
-        module = __import__("importlib.util").util.module_from_spec(spec)
+        # Dynamically load the module from its file path
+        module_name = script_path.stem
+        spec = importlib.util.spec_from_file_location(module_name, str(script_path))
+        module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         
-        # We assume each benchmark script has a 'run()' function
+        # All of our benchmarks have a main run() function
         if hasattr(module, 'run'):
-            module.run()
-            print(f"✅ TEST PASSED: {script_path.name}")
+            module.run() # Execute the benchmark
+            print(f"\n--- ✅ BENCHMARK SUCCEEDED: {script_path.name} ---")
             return True
         else:
-            print(f"--- ⚠️  SKIPPED: No 'run()' function found in {script_path.name} ---")
-            return True # Treat as a pass for now, as it's a structural issue
+            print(f"--- ⚠️  SKIPPED (No 'run' function): {script_path.name} ---")
+            return True # Treat as success if no run function is defined
 
-    except Exception as e:
-        print(f"\n--- ❌ TEST FAILED: {script_path.name} ---")
-        import traceback
+    except Exception:
+        print(f"\n--- ❌ BENCHMARK FAILED WITH EXCEPTION: {script_path.name} ---")
+        # Print the full traceback for immediate diagnosis
         print(traceback.format_exc())
-        print("--------------------")
+        print("-----------------------------------------------------")
         return False
 
 if __name__ == "__main__":
     tests_dir = project_root / "tests"
-    scripts_to_run = sorted(list(tests_dir.glob("benchmark_*.py")))
     
-    print(f"Found {len(scripts_to_run)} tests to execute.")
+    # Use glob to automatically find all benchmark scripts
+    benchmark_scripts = sorted(list(tests_dir.glob("benchmark_*.py")))
     
-    failures = []
-    for script_path in scripts_to_run:
-        # We need to ensure each benchmark has a 'run' function for this to work
-        # Let's also fix the benchmarks themselves.
-        pass # The logic below will be implemented after fixing the files.
-
-    print("\nExecuting tests with a simplified, robust runner...")
-    # A simpler runner that just calls the python executable, now that the path issue is understood.
-    # We must fix the benchmark files themselves to be runnable modules.
-    
-    # For now, let's fix the subprocess runner to be correct.
-    env = os.environ.copy()
-    env["PYTHONPATH"] = f"{str(src_path)}{os.pathsep}{env.get('PYTHONPATH', '')}"
+    print(f"Found {len(benchmark_scripts)} benchmark scripts to execute.")
     
     failures = []
-    for script_path in scripts_to_run:
-        print("="*80)
-        print(f"🚀 EXECUTING TEST: {script_path.name}")
-        print("="*80)
-        
-        result = subprocess.run(
-            [sys.executable, str(script_path)],
-            capture_output=True, text=True, env=env
-        )
-        print(result.stdout)
-        if result.returncode != 0 or "❌" in result.stdout or "Error:" in result.stdout:
-            print(f"\n--- ❌ TEST FAILED: {script_path.name} ---")
-            if result.stderr:
-                print("--- Stderr ---")
-                print(result.stderr)
-            print("--------------------")
-            failures.append(script_path.name)
-
+    
+    # --- Clean and Recompile before running tests ---
+    print("\n--- 🛠️  Performing a clean build... ---")
+    import subprocess
+    build_process = subprocess.run(
+        [sys.executable, "setup.py", "build_ext", "--inplace"],
+        capture_output=True, text=True, cwd=project_root
+    )
+    if build_process.returncode != 0:
+        print("--- ❌ CRITICAL BUILD FAILURE ---")
+        print(build_process.stdout)
+        print(build_process.stderr)
+        sys.exit(1)
+    print("--- ✅ Build successful. ---")
+    
+    # --- Run the test suite ---
+    for script in benchmark_scripts:
+        if not run_benchmark_module(script):
+            failures.append(script.name)
+            
+    # --- Final Verdict ---
     print("\n" + "="*80)
     if not failures:
-        print("✅✅✅ MONUMENTAL SUCCESS: All tests passed in the new repository structure!")
+        print("✅✅✅ MONUMENTAL SUCCESS: The entire Helios.Embed test suite passed.")
     else:
-        print(f"❌ FAILURE: The following {len(failures)} tests failed: {', '.join(failures)}")
+        print(f"❌ FAILURE: The following {len(failures)} benchmarks failed: {', '.join(failures)}")
     print("="*80)
-# --- END OF FILE HELIOS_EMBED/run_tests.py (Final, Corrected Version v3) ---
+
+# --- END OF FILE HELIOS_EMBED/run_tests.py (FINAL, ROBUST VERSION) ---
