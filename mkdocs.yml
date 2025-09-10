@@ -1,1 +1,46 @@
-site_name: My Docs
+site_name: Novel Byte Labs
+site_url: "https://www.novelbytelabs.com"
+repo_url: https://github.com/Emergenics/helios_embed/
+repo_name: helios_embed
+
+theme:
+  name: 'material'
+  palette:
+    scheme: slate
+  features:
+    - navigation.sections
+    - search.suggest       # autocomplete suggestions :contentReference[oaicite:3]{index=3}
+    - search.highlight     # highlight all matches on page load
+    - content.code.annotate
+
+
+nav:
+  - 'Home': 'index.md'
+  - 'API Reference': 'api_contract.md'
+  - 'Design & Architecture': 'design.md'
+  - 'Performance':
+    - 'Scalability & Baseline': 'perf_baseline.md'
+    - 'Threading & Concurrency': 'threading_model.md'
+  - 'Validation':
+    - 'Accuracy & Tolerances': 'numerical_tolerances.md'
+
+markdown_extensions:
+  - attr_list
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - toc:
+      permalink: true
+  - tables
+  - admonition
+  - pymdownx.superfences
+
+# Optional: Add a custom CSS file if you want to tweak styles
+# extra_css:
+#  - stylesheets/extra.css
+
+# This tells mkdocs where your documentation source files are
+docs_dir: 'docs'
+
+# This allows GitHub Actions to deploy the site to the gh-pages branch
+edit_uri: edit/main/docs/
+# --- END OF FILE HELIOS_EMBED/mkdocs.yml (Corrected Navigation) ---
