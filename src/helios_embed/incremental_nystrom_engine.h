@@ -1,7 +1,7 @@
-// --- START OF FILE src/helios_embed/incremental_nystrom_engine.h (FINAL, STABLE v3.1.0) ---
+// --- START OF FILE src/helios_embed/incremental_nystrom_engine.h (FINAL, STABLE v1.1.0) ---
 #pragma once
 #include <torch/extension.h>
-#include "nystrom_engine.h" 
+#include "nystrom_engine.h" // For the stateless function declaration
 
 class IncrementalNystromEngine {
 public:
@@ -12,7 +12,7 @@ private:
     torch::Tensor landmarks_;
     float gamma_;
     float ridge_;
-    torch::Tensor K_mm_inv_sqrt_;
+    torch::Tensor K_mm_inv_sqrt_; // Cached component
     void initialize_engine();
 };
-// --- END OF FILE src/helios_embed/incremental_nystrom_engine.h (FINAL, STABLE v3.1.0) ---
+// --- END OF FILE src/helios_embed/incremental_nystrom_engine.h (FINAL, STABLE v1.1.0) ---

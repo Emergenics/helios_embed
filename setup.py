@@ -6,7 +6,6 @@ import os
 project_root = os.path.dirname(os.path.abspath(__file__))
 source_dir = os.path.join(project_root, 'src', 'helios_embed')
 
-# This is the clean, final list of source files for this module.
 source_files = [
     'helios_embed_pybind.cpp',
     'incremental_nystrom_engine.cu',
@@ -14,17 +13,21 @@ source_files = [
 ]
 absolute_source_paths = [os.path.join(source_dir, f) for f in source_files]
 
+# A quick sanity check to ensure the files exist before attempting to build.
 for p in absolute_source_paths:
     if not os.path.exists(p):
         raise FileNotFoundError(f"CRITICAL BUILD FAILURE: Source file not found: {p}")
 
 setup(
     name='helios_embed',
-    version='2.2.0', # Version bump for this definitive fix
-    author='IRBSurfer & Ashley Kelly',
-    description='Helios.Embed: The Final, Validated Nystrom Feature Engine',
+    version='2.2.0',
+    author='Michael Young & Ashley Kelly',
+    description='Helios.Embed: The Nystrom Feature Engine',
+    
+    # This tells setuptools to look for packages in the 'src' directory
     package_dir={'': 'src'},
     packages=find_packages(where='src'),
+    
     ext_modules=[
         CUDAExtension(
             name='helios_embed._core', 

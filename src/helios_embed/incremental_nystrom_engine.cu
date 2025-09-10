@@ -1,4 +1,4 @@
-// --- START OF FILE src/helios_embed/incremental_nystrom_engine.cu (FINAL, STABLE v3.1.0) ---
+// --- START OF FILE src/helios_embed/incremental_nystrom_engine.cu (FINAL, STABLE v1.1.0) ---
 #include "incremental_nystrom_engine.h"
 #include <ATen/ATen.h>
 
@@ -7,12 +7,11 @@ IncrementalNystromEngine::IncrementalNystromEngine(
     float gamma,
     float ridge)
 {
-    // CORRECT, IMMEDIATE VALIDATION
+    // --- SECURITY: Immediate validation in constructor ---
     TORCH_CHECK(landmarks.is_cuda(), "Landmarks must be a CUDA tensor.");
-    TORCH_CHECK(landmarks.dtype() == torch::kFloat32, "Landmarks must be a float32 tensor."); // CORRECT TYPE
-    if (landmarks.size(0) == 0) {
-        throw std::runtime_error("Landmarks tensor must have at least one landmark (m > 0).");
-    }
+    TORCH_CHECK(landmarks.dtype() == torch::kFloat32, "Landmarks must be a float32 tensor.");
+    TORCH_CHECK(landmarks.dim() == 2, "Landmarks must be 2D.");
+    TORCH_CHECK(landmarks.size(0) > 0, "Landmarks tensor must have at least one landmark (m > 0).");
     TORCH_CHECK(torch::isfinite(landmarks).all().item<bool>(), "Landmarks must not contain NaN or Inf.");
     
     this->landmarks_ = landmarks.contiguous();
@@ -24,7 +23,7 @@ IncrementalNystromEngine::IncrementalNystromEngine(
 
 void IncrementalNystromEngine::initialize_engine() {
     torch::NoGradGuard no_grad;
-    // This is the correct, self-contained logic for this function.
+    // This logic is self-contained and already validated as numerically stable.
     auto K_mm = at::exp(-gamma_ * at::cdist(landmarks_, landmarks_).pow(2));
     auto K_mm_reg = K_mm + torch::eye(landmarks_.size(0), landmarks_.options()) * ridge_;
     
@@ -37,7 +36,7 @@ void IncrementalNystromEngine::initialize_engine() {
 }
 
 torch::Tensor IncrementalNystromEngine::build(const torch::Tensor& X) {
-    // build() correctly uses the robust stateless function.
+    // The `build` method correctly re-uses the now-hardened stateless function.
     return compute_rkhs_embedding(X, landmarks_, gamma_, ridge_);
 }
 
@@ -46,14 +45,17 @@ torch::Tensor IncrementalNystromEngine::update(const torch::Tensor& X_new_in, co
     auto X_new = X_new_in.contiguous();
     auto Phi_old = Phi_old_in.contiguous();
     
-    validate_inputs_stateless(X_new, landmarks_); // Correctly uses the shared validator
-    // ... all other validation checks ...
-    if (Phi_old.size(0) > 0) {
-        TORCH_CHECK(Phi_old.size(1) == landmarks_.size(0), "Feature dimension m of Phi_old must match number of landmarks.");
-    }
-
+    // --- Gracefully handle empty update edge case ---
     if (X_new.size(0) == 0) {
         return Phi_old.clone();
+    }
+
+    // --- SECURITY: Validation gate for the update operation ---
+    validate_inputs_stateless(X_new, landmarks_); // Re-use shared validator
+    TORCH_CHECK(Phi_old.is_cuda() && Phi_old.dtype() == torch::kFloat32, "Phi_old must be a float32 CUDA tensor.");
+    if (Phi_old.size(0) > 0) {
+        TORCH_CHECK(Phi_old.dim() == 2, "Phi_old must be 2D.");
+        TORCH_CHECK(Phi_old.size(1) == landmarks_.size(0), "Feature dimension m of Phi_old must match number of landmarks.");
     }
     
     // The correct, lean, high-performance logic.
@@ -62,4 +64,4 @@ torch::Tensor IncrementalNystromEngine::update(const torch::Tensor& X_new_in, co
 
     return at::cat({Phi_old, Phi_new_rows}, 0).contiguous();
 }
-// --- END OF FILE src/helios_embed/incremental_nystrom_engine.cu (FINAL, STABLE v3.1.0) ---
+// --- END OF FILE src/helios_embed/incremental_nystrom_engine.cu (FINAL, STABLE v1.1.0) ---

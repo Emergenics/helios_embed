@@ -1,4 +1,4 @@
-# --- START OF FILE tests/benchmark_hardening.py (DEFINITIVELY CORRECTED) ---
+# --- START OF FILE tests/benchmark_hardening.py ---
 import torch
 import sys
 from pathlib import Path
@@ -36,27 +36,20 @@ def run():
     
     test_results = {}
 
-    # --- THIS IS THE CORRECTED TEST ---
     print("\n--- 🧪 TESTING: Non-Contiguous Memory Input ---")
     try:
-        # Create a tensor, then transpose it. This makes it non-contiguous in memory.
-        # Crucially, the final shape [N, D] is correct.
         X_non_contig = torch.randn(D, N, device=device).T
-        assert not X_non_contig.is_contiguous() # Verify that our test case is correct
-        
+        assert not X_non_contig.is_contiguous()
         landmarks = torch.randn(m, D, device=device)
-        
-        # This should NOT crash, because our C++ code forces .contiguous() internally.
+        # Our C++ code now forces .contiguous(), so this should not crash.
         compute_rkhs_embedding(X_non_contig, landmarks, 0.1, 1e-6)
-        
         print("  - Handled non-contiguous input correctly without error.")
         test_results["Non-Contiguous"] = True
     except Exception as e:
         print(f"  - FAILED with unexpected exception: {e}")
         test_results["Non-Contiguous"] = False
     print(PASS if test_results["Non-Contiguous"] else FAIL)
-    # --- END OF CORRECTION ---
-
+    
     print("\n--- 🧪 TESTING: NaN Input ---")
     try:
         X_nan = torch.randn(N, D, device=device)
@@ -66,7 +59,7 @@ def run():
         print("  - FAILED: Did not throw an error for NaN input.")
         test_results["NaN Input"] = False
     except RuntimeError as e:
-        if "must not contain NaN or Inf" in str(e):
+        if "must not contain nan or inf" in str(e).lower():
             print("  - Correctly threw error for NaN input.")
             test_results["NaN Input"] = True
         else:
@@ -83,7 +76,7 @@ def run():
         print("  - FAILED: Did not throw an error for Inf input.")
         test_results["Inf Input"] = False
     except RuntimeError as e:
-        if "must not contain NaN or Inf" in str(e):
+        if "must not contain nan or inf" in str(e).lower():
             print("  - Correctly threw error for Inf input.")
             test_results["Inf Input"] = True
         else:
@@ -99,7 +92,7 @@ def run():
         print("  - FAILED: Did not throw an error for D dimension mismatch.")
         test_results["D Mismatch"] = False
     except RuntimeError as e:
-        if "Feature dimensions of input X and landmarks Lm must match" in str(e):
+        if "feature dimensions of input x and landmarks lm must match" in str(e).lower():
             print("  - Correctly threw error for D dimension mismatch.")
             test_results["D Mismatch"] = True
         else:
@@ -122,4 +115,4 @@ def run():
 
 if __name__ == "__main__":
     run()
-# --- END OF FILE tests/benchmark_hardening.py (DEFINITIVELY CORRECTED) ---
+# --- END OF FILE tests/benchmark_hardening.py ---

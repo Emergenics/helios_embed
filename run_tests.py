@@ -1,65 +1,54 @@
-# --- START OF FILE HELIOS_EMBED/run_tests.py (FINAL, ROBUST VERSION) ---
+# --- START OF FILE run_tests.py (CORRECTED) ---
+import subprocess
 import sys
 from pathlib import Path
-import importlib.util
-import traceback
+import os
 
-# --- CRITICAL: Add the 'src' directory to the Python path ---
-# This ensures that any test script can find the compiled C++ module.
-project_root = Path(__file__).parent.resolve()
-src_path = project_root / 'src'
-if str(src_path) not in sys.path:
-    sys.path.insert(0, str(src_path))
-
-def run_benchmark_module(script_path):
-    """
-    Dynamically imports and runs a benchmark script.
-    A benchmark is considered PASSED if its main 'run()' function
-    executes without raising an uncaught exception.
-    """
+def run_test(script_path):
     print("="*80)
     print(f"🚀 EXECUTING BENCHMARK: {script_path.name}")
     print("="*80)
     
-    try:
-        # Dynamically load the module from its file path
-        module_name = script_path.stem
-        spec = importlib.util.spec_from_file_location(module_name, str(script_path))
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        
-        # All of our benchmarks have a main run() function
-        if hasattr(module, 'run'):
-            module.run() # Execute the benchmark
-            print(f"\n--- ✅ BENCHMARK SUCCEEDED: {script_path.name} ---")
-            return True
-        else:
-            print(f"--- ⚠️  SKIPPED (No 'run' function): {script_path.name} ---")
-            return True # Treat as success if no run function is defined
-
-    except Exception:
-        print(f"\n--- ❌ BENCHMARK FAILED WITH EXCEPTION: {script_path.name} ---")
-        # Print the full traceback for immediate diagnosis
-        print(traceback.format_exc())
-        print("-----------------------------------------------------")
+    env = os.environ.copy()
+    project_root = Path(__file__).parent.resolve()
+    src_path = project_root / 'src'
+    # Programmatically add src/ to the PYTHONPATH for the subprocess
+    env["PYTHONPATH"] = f"{str(src_path)}{os.pathsep}{env.get('PYTHONPATH', '')}"
+    
+    result = subprocess.run(
+        [sys.executable, str(script_path)], 
+        capture_output=True, text=True, env=env, cwd=project_root
+    )
+    
+    print(result.stdout)
+    if result.returncode != 0:
+        print(f"--- ❌ BENCHMARK FAILED WITH EXCEPTION: {script_path.name} ---")
+        print(result.stderr)
+        print("-" * 50)
         return False
+        
+    print(f"--- ✅ BENCHMARK SUCCEEDED: {script_path.name} ---")
+    return True
 
 if __name__ == "__main__":
-    tests_dir = project_root / "tests"
+    tests_dir = Path(__file__).parent.resolve() / "tests"
     
-    # Use glob to automatically find all benchmark scripts
-    benchmark_scripts = sorted(list(tests_dir.glob("benchmark_*.py")))
+    benchmark_scripts = [
+        "benchmark_edge_cases.py",
+        "benchmark_hardening.py",
+        "test_correctness.py", # This is the main correctness test
+        "benchmark_nystrom.py",
+        "benchmark_streaming.py",
+        "benchmark_scalability.py"
+    ]
+    absolute_script_paths = [tests_dir / script for script in benchmark_scripts]
     
-    print(f"Found {len(benchmark_scripts)} benchmark scripts to execute.")
+    print(f"Found {len(absolute_script_paths)} benchmark scripts to execute.")
     
-    failures = []
-    
-    # --- Clean and Recompile before running tests ---
     print("\n--- 🛠️  Performing a clean build... ---")
-    import subprocess
     build_process = subprocess.run(
         [sys.executable, "setup.py", "build_ext", "--inplace"],
-        capture_output=True, text=True, cwd=project_root
+        capture_output=True, text=True, cwd=Path(__file__).parent.resolve()
     )
     if build_process.returncode != 0:
         print("--- ❌ CRITICAL BUILD FAILURE ---")
@@ -68,12 +57,11 @@ if __name__ == "__main__":
         sys.exit(1)
     print("--- ✅ Build successful. ---")
     
-    # --- Run the test suite ---
-    for script in benchmark_scripts:
-        if not run_benchmark_module(script):
-            failures.append(script.name)
+    failures = []
+    for script_path in absolute_script_paths:
+        if not run_test(script_path):
+            failures.append(script_path.name)
             
-    # --- Final Verdict ---
     print("\n" + "="*80)
     if not failures:
         print("✅✅✅ MONUMENTAL SUCCESS: The entire Helios.Embed test suite passed.")
@@ -81,4 +69,4 @@ if __name__ == "__main__":
         print(f"❌ FAILURE: The following {len(failures)} benchmarks failed: {', '.join(failures)}")
     print("="*80)
 
-# --- END OF FILE HELIOS_EMBED/run_tests.py (FINAL, ROBUST VERSION) ---
+# --- END OF FILE run_tests.py (CORRECTED) ---
