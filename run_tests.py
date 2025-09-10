@@ -36,10 +36,11 @@ if __name__ == "__main__":
     benchmark_scripts = [
         "benchmark_edge_cases.py",
         "benchmark_hardening.py",
-        "test_correctness.py",
         "benchmark_nystrom.py",
+        "benchmark_scalability.py",
         "benchmark_streaming.py",
-        "benchmark_scalability.py"
+        "test_correctness.py",
+        "test_sanitizers.py"
     ]
     absolute_script_paths = [tests_dir / script for script in benchmark_scripts]
     

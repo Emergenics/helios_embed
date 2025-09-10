@@ -5,5 +5,7 @@
   "python.analysis.autoImportCompletions": true,
   "python-envs.defaultEnvManager": "ms-python.python:conda",
   "python-envs.defaultPackageManager": "ms-python.python:conda",
-  "python-envs.pythonProjects": []
+  "python-envs.pythonProjects": [],
+  "notebook.lineNumbers": "on",
+  "editor.lineNumbers": "on"
 }
