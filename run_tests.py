@@ -36,7 +36,7 @@ if __name__ == "__main__":
     benchmark_scripts = [
         "benchmark_edge_cases.py",
         "benchmark_hardening.py",
-        "test_correctness.py", # This is the main correctness test
+        "test_correctness.py",
         "benchmark_nystrom.py",
         "benchmark_streaming.py",
         "benchmark_scalability.py"
