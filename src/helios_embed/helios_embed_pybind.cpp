@@ -1,4 +1,4 @@
-// --- START OF FILE src/helios_embed/helios_embed_pybind.cpp (Version 2.1.0 - FINAL) ---
+// --- START OF FILE src/helios_embed/helios_embed_pybind.cpp (FINAL v2.2.0) ---
 #include <torch/extension.h>
 #include "nystrom_engine.h"
 #include "incremental_nystrom_engine.h"
@@ -13,8 +13,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         .def("build", &IncrementalNystromEngine::build)
         .def("update", &IncrementalNystromEngine::update);
 
-    m.def("compute_rkhs_embedding", &compute_rkhs_embedding_nystrom, 
+    m.def("compute_rkhs_embedding", &compute_rkhs_embedding, 
           "The single, production-ready, stateless Nystrom feature embedding function.", 
           py::arg("X"), py::arg("landmarks"), py::arg("gamma"), py::arg("ridge"));
 }
-// --- END OF FILE src/helios_embed/helios_embed_pybind.cpp (Version 2.1.0 - FINAL) ---
+// --- END OF FILE src/helios_embed/helios_embed_pybind.cpp (FINAL v2.2.0) ---
