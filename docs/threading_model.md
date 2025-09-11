@@ -1,4 +1,24 @@
-# --- START OF FILE docs/threading_model.md ---
+<!-- MathJax configuration for MkDocs -->
+
+<script>
+window.MathJax = {
+  tex: {
+    inlineMath: [['$', '$'], ['\\(', '\\)']],
+    displayMath: [['$$','$$'], ['\\[','\\]']]
+  }
+};
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+
+<!-- Make all headers yellow -->
+
+<style>
+  h1, h2, h3, h4, h5, h6 {
+    color: yellow;
+  }
+</style>
+
 # Helios.Embed v1.0.0 - Concurrency & Threading Model
 
 This document outlines the thread-safety guarantees and concurrency model for the `Helios.Embed` module.
@@ -65,5 +85,3 @@ The concurrency model for `Helios.Embed` is designed to be simple, predictable, 
 *   **Behavior:** The engine operates on the **current default CUDA stream** as managed by PyTorch. It does not create its own streams.
 *   **Synchronization:** All operations within a single function call (e.g., `compute_rkhs_embedding`) are internally synchronized with the CUDA device before returning control to the Python interpreter. The functions are blocking from the host's perspective.
 *   **Advanced Usage:** For advanced users integrating with custom CUDA streams, you can use PyTorch's `with torch.cuda.stream(s):` context manager to direct the engine's operations to a specific stream. The engine will respect this context.
-
-# --- END OF FILE docs/threading_model.md ---

@@ -1,3 +1,23 @@
+<!-- MathJax configuration for MkDocs -->
+
+<script>
+window.MathJax = {
+  tex: {
+    inlineMath: [['$', '$'], ['\\(', '\\)']],
+    displayMath: [['$$','$$'], ['\\[','\\]']]
+  }
+};
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+
+<!-- Make all headers yellow -->
+
+<style>
+  h1, h2, h3, h4, h5, h6 {
+    color: yellow;
+  }
+</style>
 
 # Helios.Embed v1.0.0 - API Contract
 

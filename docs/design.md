@@ -1,4 +1,24 @@
-# --- START OF FILE docs/design.md ---
+<!-- MathJax configuration for MkDocs -->
+
+<script>
+window.MathJax = {
+  tex: {
+    inlineMath: [['$', '$'], ['\\(', '\\)']],
+    displayMath: [['$$','$$'], ['\\[','\\]']]
+  }
+};
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+
+<!-- Make all headers yellow -->
+
+<style>
+  h1, h2, h3, h4, h5, h6 {
+    color: yellow;
+  }
+</style>
+
 # Helios.Embed v1.0.0 - Design & Architecture
 
 This document outlines the core design principles, architectural decisions, and implementation rationale for the `Helios.Embed` (Nyström Feature Engine) module.
@@ -48,5 +68,3 @@ The module is composed of two primary, user-facing interfaces built upon a unifi
     *   **Input Validation:** Every public C++ function begins with a call to a comprehensive `validate_inputs` function. This function uses a series of `TORCH_CHECK` macros to enforce strict constraints on tensor device, dtype, shape, and data integrity (`NaN`/`Inf`). This ensures the engine fails fast with clear, informative errors before any computation begins.
     *   **Memory Contiguity:** All input tensors are immediately converted to a `.contiguous()` memory layout upon entering the C++ boundary. This prevents CUDA errors and simplifies kernel logic by guaranteeing a predictable memory stride, a lesson learned from our hardening benchmarks.
     *   **Error Mapping:** All C++ exceptions thrown by `TORCH_CHECK` are automatically and cleanly mapped to Python `RuntimeError` exceptions by the Pybind11/PyTorch C++ extension framework, providing a seamless and predictable error-handling experience for the Python user.
-
-# --- END OF FILE docs/design.md ---
