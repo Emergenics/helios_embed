@@ -93,6 +93,65 @@ assert rel_mse.item() <= 1e-7, "Accuracy test failed!"
 print("✅ Success! The streaming engine is bit-perfectly accurate.")
 ```
 
+### 4. Developer Notes
+# Dependencies required for running the Helios.Embed test and benchmark suite.
+
+# Core runtime dependency (for clarity)
+torch>=2.1.2,<2.2
+
+# Test suite dependencies
+numpy
+pandas
+matplotlib
+
+# Optional, but recommended for development
+pybind11
+ninja
+# --- END OF FILE HELIOS_EMBED/requirements-test.txt ---
+```
+
+#### **Action 2: Update the `README.md` with Development Setup Instructions**
+
+We need to add a "Developer Setup" section to our `README.md` to instruct contributors on how to correctly set up their environment for testing.
+
+**File to Modify:** `HELIOS_EMBED/README.md`
+
+*   **Action:** Add the following new section to the end of your `README.md` file.
+
+```markdown
+# --- ADD THIS SECTION TO README.md ---
+
+## 🛠️ For Developers: Setting Up a Test Environment
+
+To run the full test and benchmark suite, you need to install the test-time dependencies in addition to the core package.
+
+**1. Create a clean environment:**
+```bash
+python3.10 -m venv .venv-dev
+source .venv-dev/bin/activate
+```
+
+**2. Install PyTorch:**
+```bash
+pip install torch==2.1.2 --index-url https://download.pytorch.org/whl/cu118
+```
+
+**3. Install Test Dependencies:**
+```bash
+pip install -r requirements-test.txt
+```
+
+**4. Build the Extension:**
+```bash
+python setup.py build_ext --inplace
+```
+
+**5. Run the Full Test Suite:**
+```bash
+python run_tests.py
+```
+
+
 ## 📚 Full Documentation
 
 For more detailed information, please see our full documentation website, which includes:
@@ -104,3 +163,11 @@ For more detailed information, please see our full documentation website, which 
 *   **[Concurrency Model](docs/threading_model.md):** Guarantees for using the engine in multi-threaded environments.
 
 ---
+
+
+
+
+
+
+
+
