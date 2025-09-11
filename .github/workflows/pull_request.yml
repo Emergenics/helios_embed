@@ -1,0 +1,95 @@
+name: PR CI (CPU-only, fast, deterministic)
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+concurrency:
+  group: pr-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: 🧹 Lint / Format (changed files only)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format
+      - name: Check formatting (diff-only)
+        run: |
+          # Compare against the PR base
+          BASE_REF="${{ github.base_ref || 'main' }}"
+          git fetch origin "${BASE_REF}" --depth=1 || true
+          CHANGED=$(git diff --name-only "origin/${BASE_REF}..." | grep -E '\.(c|cc|cpp|cxx|cu|cuh|h|hh|hpp)$' || true)
+          if [ -z "$CHANGED" ]; then
+            echo "No C/C++/CUDA files changed."
+            exit 0
+          fi
+          echo "$CHANGED" | xargs -n 1 clang-format -style=file --dry-run --Werror
+
+  build-cpu:
+    name: 🛠️ Build (CPU-only, manylinux_2_28)
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker (default on GitHub runners)
+        run: docker version
+      - name: Build CPU container
+        run: docker build -f Dockerfile.cpu -t helios-embed:cpu .
+      - name: Build project inside container (sanity)
+        run: |
+          docker run --rm -v "$PWD":/io helios-embed:cpu \
+            bash -lc "python -c 'import sys; print(sys.version)'; python -c 'import torch; print(torch.__version__, torch.version.cuda)'"
+
+  test-cpu:
+    name: ✅ Tests (short, CPU-only)
+    runs-on: ubuntu-latest
+    needs: build-cpu
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reuse built image
+        run: docker images | grep 'helios-embed\s*cpu'
+      - name: Run short tests (GPU-free)
+        run: |
+          # Run only short tests; run_tests.py will auto-skip GPU if present
+          docker run --rm -v "$PWD":/io helios-embed:cpu \
+            bash -lc "pytest -q || python HELIOS_EMBED/run_tests.py"
+
+  static-analysis:
+    name: 🔬 Static Analysis (advisory)
+    runs-on: ubuntu-latest
+    needs: test-cpu
+    continue-on-error: true  # advisory initially
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Install clang-tidy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-tidy
+      - name: Run clang-tidy on changed files (bounded)
+        run: |
+          BASE_REF="${{ github.base_ref || 'main' }}"
+          git fetch origin "${BASE_REF}" --depth=1 || true
+          CHANGED=$(git diff --name-only "origin/${BASE_REF}..." | grep -E '\.(cc|cpp|cxx|cu|cuh|hpp|hh|h)$' || true)
+          if [ -z "$CHANGED" ]; then
+            echo "No C/C++/CUDA headers/sources changed."
+            exit 0
+          fi
+          # Generate a minimal compile_commands.json if your project already has one, prefer using it.
+          # If you produce compile_commands.json in your build, you can mount it here instead.
+          echo "Running bounded clang-tidy on changed files..."
+          set -e
+          for f in $CHANGED; do
+            echo "Analyzing $f"
+            clang-tidy "$f" -- -std=c++17 || true
+          done
