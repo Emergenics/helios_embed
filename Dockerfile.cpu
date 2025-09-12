@@ -1,4 +1,4 @@
-# --- START OF FILE HELIOS_EMBED/Dockerfile.cpu (FINAL v1.5 - Correct Installation) ---
+# --- START OF FILE HELIOS_EMBED/Dockerfile.cpu (FINAL v1.6 - Unified PyTorch Install) ---
 # Dockerfile.cpu — CPU-only build & test env (manylinux_2_28)
 
 FROM quay.io/pypa/manylinux_2_28_x86_64
@@ -8,29 +8,27 @@ ENV PATH=${PYBIN}/bin:${PATH}
 WORKDIR /io
 
 # --- THIS IS THE CRITICAL FIX ---
-# Install all dependencies in a single, robust layer.
-# This ensures pip resolves the full dependency graph correctly at once.
+# We now install ALL dependencies, including PyTorch, in a single command.
+# Most importantly, we select a PyTorch version that satisfies our setup.py constraint.
+# PyTorch 2.1.2 is the latest version that satisfies '<2.2,>=2.1.2'.
 RUN ${PYBIN}/bin/pip install --upgrade pip setuptools wheel \
  && ${PYBIN}/bin/pip install \
       "numpy<2.0" \
-      pandas \
-      matplotlib \
-      pybind11 \
-      ninja \
-      torch --extra-index-url https://download.pytorch.org/whl/cpu
+      pandas matplotlib \
+      pybind11 ninja \
+      "torch>=2.1.2,<2.2" --extra-index-url https://download.pytorch.org/whl/cpu
+# --- END OF CRITICAL FIX ---
 
-# Copy the project source code into the container
+# Copy project source code into the container
 COPY . /io
 
 # Build the extension and install it in editable mode.
-# 'pip install -e .' is the correct command to both compile the C++ extension
-# and make the Python package importable in the current environment.
+# This will now use the correctly pinned and installed torch version.
 RUN ${PYBIN}/bin/pip install -e .
-# --- END OF CRITICAL FIX ---
 
 # After the package is installed, immediately run a smoke test to verify.
 RUN ${PYBIN}/bin/python -c "from helios_embed._core import get_build_info; print('Docker build-time import successful. Build info:', get_build_info())"
 
 # Default command for external verification
 CMD ["/bin/bash", "-lc", "python -c 'import helios_embed; print(helios_embed._core.get_build_info())'"]
-# --- END OF FILE HELIOS_EMBED/Dockerfile.cpu (FINAL v1.5 - Correct Installation) ---
+# --- END OF FILE HELIOS_EMBED/Dockerfile.cpu (FINAL v1.6 - Unified PyTorch Install) ---
