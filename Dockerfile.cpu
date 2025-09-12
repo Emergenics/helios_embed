@@ -1,4 +1,4 @@
-# --- START OF FILE HELIOS_EMBED/Dockerfile.cpu ---
+# --- START OF FILE HELIOS_EMBED/Dockerfile.cpu (FINAL v1.1 - Corrected pip Index) ---
 # Dockerfile.cpu — CPU-only build & test env (manylinux_2_28)
 # Purpose: Provide a deterministic, GPU-free environment that matches modern manylinux (PEP 600).
 
@@ -9,20 +9,29 @@ ENV PYBIN=/opt/python/cp310-cp310
 ENV PATH=${PYBIN}/bin:${PATH}
 WORKDIR /io
 
-# Upgrade pip/setuptools/wheel for robustness; install CPU torch + test tooling.
-RUN ${PYBIN}/bin/pip install --upgrade pip setuptools wheel \
- && ${PYBIN}/bin/pip install \
-      torch --index-url https://download.pytorch.org/whl/cpu \
+# System packages are intentionally minimal on manylinux images.
+# We'll rely on Python wheels for dependencies.
+
+# Upgrade pip/setuptools/wheel for robustness
+RUN ${PYBIN}/bin/pip install --upgrade pip setuptools wheel
+
+# --- THIS IS THE CRITICAL FIX ---
+# Install PyTorch using --extra-index-url to keep PyPI as the primary source.
+RUN ${PYBIN}/bin/pip install \
+      torch --extra-index-url https://download.pytorch.org/whl/cpu
+
+# Install all other build and test dependencies from the standard PyPI.
+RUN ${PYBIN}/bin/pip install \
       numpy pandas matplotlib \
       pybind11 ninja
+# --- END OF CRITICAL FIX ---
 
 # Copy project (context is repo root)
 COPY . /io
 
 # Build the extension in editable mode for testing.
-# This uses the CPU-only torch, so CUDA paths will be disabled.
 RUN ${PYBIN}/bin/pip install -e .
 
 # Default command is a no-op; tests are invoked from the workflow via `docker run ...`
 CMD ["/bin/bash", "-lc", "python -V && pip -V"]
-# --- END OF FILE HELIOS_EMBED/Dockerfile.cpu ---
+# --- END OF FILE HELIOS_EMBED/Dockerfile.cpu (FINAL v1.1 - Corrected pip Index) ---
