@@ -1,4 +1,4 @@
-# --- START OF FILE .github/workflows/pull_request.yml (FINAL v2.2 - Correctly Integrated) ---
+# --- START OF FILE .github/workflows/pull_request.yml (FINAL v2.3 - Shell Quoting Fixed) ---
 name: PR CI (CPU-only, fast, deterministic)
 
 on:
@@ -45,21 +45,24 @@ jobs:
       - name: Build CPU container
         run: docker build -f Dockerfile.cpu -t helios-embed-cpu-builder .
       
-      # --- THIS IS THE SURGICALLY INSERTED VERIFICATION STEP ---
+      # --- THIS IS THE CORRECTED VERIFICATION STEP ---
       - name: Verify CPU-only Environment before Build
         run: |
           docker run --rm -v "$(pwd)":/io helios-embed-cpu-builder \
-            bash -lc "
-              echo '--- Verifying Environment ---'
-              unset CUDA_HOME FORCE_CUDA TORCH_CUDA_ARCH_LIST
-              python -c 'import os, shutil, torch; print(\\\"torch.__version__         =\\\", torch.__version__); print(\\\"torch.version.cuda        =\\\", getattr(torch.version, \\\"cuda\\\", None)); print(\\\"torch.cuda.is_available() =\\\", torch.cuda.is_available()); print(\\\"which nvcc                =\\\", shutil.which(\\\"nvcc\\\"))'
-            "
-      # --- END OF INSERTED STEP ---
+            python - <<'PY'
+          import os, shutil, torch
+          print("--- Verifying Environment ---")
+          print("torch.__version__         =", torch.__version__)
+          print("torch.version.cuda        =", getattr(torch.version, "cuda", None))
+          print("torch.cuda.is_available() =", torch.cuda.is_available())
+          print("which nvcc                =", shutil.which("nvcc"))
+          PY
+      # --- END OF CORRECTION ---
 
       - name: Build project inside container
         run: |
-          # The pip install -e . command inside the Dockerfile handles the build.
-          # We just need to run a command to ensure the image works as expected.
+          # The pip install -e . in the Dockerfile already handles the build.
+          # This step just verifies the final image works.
           docker run --rm -v "$(pwd)":/io helios-embed-cpu-builder \
             bash -lc "python -c 'import helios_embed; print(\"Module import successful inside container.\")'"
 
@@ -102,8 +105,8 @@ jobs:
           set -e
           for f in $CHANGED; do
             echo "Analyzing $f"
-            # We need to provide include paths for clang-tidy to find headers
-            # A compile_commands.json file is the robust way, but for a simple check:
+            # This requires a compile_commands.json file for accurate header lookups.
+            # For now, this is a best-effort check.
             clang-tidy-14 "$f" -- -std=c++17 -I src/helios_embed -I $(python -c 'import torch; print(torch.utils.cpp_extension.include_paths()[0])') -I $(python -c 'import pybind11; print(pybind11.get_include())') || true
           done
-# --- END OF FILE .github/workflows/pull_request.yml (FINAL v2.2 - Correctly Integrated) ---
+# --- END OF FILE .github/workflows/pull_request.yml (FINAL v2.3 - Shell Quoting Fixed) ---
