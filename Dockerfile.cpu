@@ -1,31 +1,34 @@
-# --- START OF FILE HELIOS_EMBED/Dockerfile.cpu (FINAL v1.3 - NumPy Pinned) ---
+# --- START OF FILE HELIOS_EMBED/Dockerfile.cpu (FINAL v1.4 - Hardened Build) ---
 # Dockerfile.cpu — CPU-only build & test env (manylinux_2_28)
-# Purpose: Provide a deterministic, GPU-free environment that matches modern manylinux (PEP 600).
 
 FROM quay.io/pypa/manylinux_2_28_x86_64
 
-# Use the manylinux Python interpreter for correct wheel tags
 ENV PYBIN=/opt/python/cp310-cp310
 ENV PATH=${PYBIN}/bin:${PATH}
 WORKDIR /io
 
-# --- THIS IS THE CRITICAL FIX ---
-# Upgrade pip and install all build/test dependencies in a single, robust layer.
-# Crucially, we pin numpy<2.0 to ensure ABI compatibility with our PyTorch version.
+# Install all dependencies in a single layer for better caching.
+# Pin numpy<2.0 to ensure ABI compatibility.
 RUN ${PYBIN}/bin/pip install --upgrade pip setuptools wheel \
  && ${PYBIN}/bin/pip install \
       torch --extra-index-url https://download.pytorch.org/whl/cpu \
       "numpy<2.0" \
       pandas matplotlib \
       pybind11 ninja
-# --- END OF CRITICAL FIX ---
 
-# Copy project (context is repo root)
+# Copy the project source code into the container
 COPY . /io
 
-# Build the extension in editable mode for testing.
-RUN ${PYBIN}/bin/pip install -e .
+# --- THIS IS THE CRITICAL FIX ---
+# Build the extension using the direct, robust setup.py command.
+# This provides more explicit error messages than pip.
+RUN ${PYBIN}/bin/python setup.py build_ext --inplace
 
-# Default command for sanity checks
-CMD ["/bin/bash", "-lc", "python -c 'import torch; import numpy; import helios_embed; print(\"Torch:\", torch.__version__); print(\"NumPy:\", numpy.__version__); print(\"Helios Build:\", helios_embed._core.get_build_info())'"]
-# --- END OF FILE HELIOS_EMBED/Dockerfile.cpu (FINAL v1.3 - NumPy Pinned) ---
+# After building, immediately run a smoke test to verify the build succeeded.
+# If this command fails, the entire Docker build will fail, catching the error early.
+RUN ${PYBIN}/bin/python -c "from helios_embed._core import get_build_info; print('Docker build-time import successful. Build info:', get_build_info())"
+# --- END OF CRITICAL FIX ---
+
+# Default command for external verification
+CMD ["/bin/bash", "-lc", "python -c 'import helios_embed; print(helios_embed._core.get_build_info())'"]
+# --- END OF FILE HELIOS_EMBED/Dockerfile.cpu (FINAL v1.4 - Hardened Build) ---
