@@ -1,3 +1,4 @@
+# --- START OF FILE .github/workflows/pull_request.yml (FINAL v2.2 - Correctly Integrated) ---
 name: PR CI (CPU-only, fast, deterministic)
 
 on:
@@ -7,7 +8,7 @@ on:
     branches: [ main ]
 
 concurrency:
-  group: pr-ci-${{ github.ref }}
+  group: pr-ci-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
@@ -21,10 +22,9 @@ jobs:
       - name: Install clang-format
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-format
+          sudo apt-get install -y clang-format-14
       - name: Check formatting (diff-only)
         run: |
-          # Compare against the PR base
           BASE_REF="${{ github.base_ref || 'main' }}"
           git fetch origin "${BASE_REF}" --depth=1 || true
           CHANGED=$(git diff --name-only "origin/${BASE_REF}..." | grep -E '\.(c|cc|cpp|cxx|cu|cuh|h|hh|hpp)$' || true)
@@ -32,7 +32,7 @@ jobs:
             echo "No C/C++/CUDA files changed."
             exit 0
           fi
-          echo "$CHANGED" | xargs -n 1 clang-format -style=file --dry-run --Werror
+          echo "$CHANGED" | xargs -n 1 clang-format-14 -style=file --dry-run --Werror
 
   build-cpu:
     name: 🛠️ Build (CPU-only, manylinux_2_28)
@@ -40,14 +40,28 @@ jobs:
     needs: lint
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Docker (default on GitHub runners)
+      - name: Set up Docker
         run: docker version
       - name: Build CPU container
-        run: docker build -f Dockerfile.cpu -t helios-embed:cpu .
-      - name: Build project inside container (sanity)
+        run: docker build -f Dockerfile.cpu -t helios-embed-cpu-builder .
+      
+      # --- THIS IS THE SURGICALLY INSERTED VERIFICATION STEP ---
+      - name: Verify CPU-only Environment before Build
         run: |
-          docker run --rm -v "$PWD":/io helios-embed:cpu \
-            bash -lc "python -c 'import sys; print(sys.version)'; python -c 'import torch; print(torch.__version__, torch.version.cuda)'"
+          docker run --rm -v "$(pwd)":/io helios-embed-cpu-builder \
+            bash -lc "
+              echo '--- Verifying Environment ---'
+              unset CUDA_HOME FORCE_CUDA TORCH_CUDA_ARCH_LIST
+              python -c 'import os, shutil, torch; print(\\\"torch.__version__         =\\\", torch.__version__); print(\\\"torch.version.cuda        =\\\", getattr(torch.version, \\\"cuda\\\", None)); print(\\\"torch.cuda.is_available() =\\\", torch.cuda.is_available()); print(\\\"which nvcc                =\\\", shutil.which(\\\"nvcc\\\"))'
+            "
+      # --- END OF INSERTED STEP ---
+
+      - name: Build project inside container
+        run: |
+          # The pip install -e . command inside the Dockerfile handles the build.
+          # We just need to run a command to ensure the image works as expected.
+          docker run --rm -v "$(pwd)":/io helios-embed-cpu-builder \
+            bash -lc "python -c 'import helios_embed; print(\"Module import successful inside container.\")'"
 
   test-cpu:
     name: ✅ Tests (short, CPU-only)
@@ -55,19 +69,18 @@ jobs:
     needs: build-cpu
     steps:
       - uses: actions/checkout@v4
-      - name: Reuse built image
-        run: docker images | grep 'helios-embed\s*cpu'
+      - name: Build CPU container (can be cached from previous step)
+        run: docker build -f Dockerfile.cpu -t helios-embed-cpu-builder .
       - name: Run short tests (GPU-free)
         run: |
-          # Run only short tests; run_tests.py will auto-skip GPU if present
-          docker run --rm -v "$PWD":/io helios-embed:cpu \
-            bash -lc "pytest -q || python HELIOS_EMBED/run_tests.py"
+          docker run --rm -v "$(pwd)":/io helios-embed-cpu-builder \
+            bash -lc "python run_tests.py"
 
   static-analysis:
     name: 🔬 Static Analysis (advisory)
     runs-on: ubuntu-latest
     needs: test-cpu
-    continue-on-error: true  # advisory initially
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
         with:
@@ -75,7 +88,7 @@ jobs:
       - name: Install clang-tidy
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-tidy
+          sudo apt-get install -y clang-tidy-14
       - name: Run clang-tidy on changed files (bounded)
         run: |
           BASE_REF="${{ github.base_ref || 'main' }}"
@@ -85,11 +98,12 @@ jobs:
             echo "No C/C++/CUDA headers/sources changed."
             exit 0
           fi
-          # Generate a minimal compile_commands.json if your project already has one, prefer using it.
-          # If you produce compile_commands.json in your build, you can mount it here instead.
           echo "Running bounded clang-tidy on changed files..."
           set -e
           for f in $CHANGED; do
             echo "Analyzing $f"
-            clang-tidy "$f" -- -std=c++17 || true
+            # We need to provide include paths for clang-tidy to find headers
+            # A compile_commands.json file is the robust way, but for a simple check:
+            clang-tidy-14 "$f" -- -std=c++17 -I src/helios_embed -I $(python -c 'import torch; print(torch.utils.cpp_extension.include_paths()[0])') -I $(python -c 'import pybind11; print(pybind11.get_include())') || true
           done
+# --- END OF FILE .github/workflows/pull_request.yml (FINAL v2.2 - Correctly Integrated) ---
