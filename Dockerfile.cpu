@@ -1,28 +1,22 @@
-# --- START OF FILE HELIOS_EMBED/Dockerfile.cpu (FINAL v1.1 - Corrected pip Index) ---
+# --- START OF FILE HELIOS_EMBED/Dockerfile.cpu (FINAL v1.3 - NumPy Pinned) ---
 # Dockerfile.cpu — CPU-only build & test env (manylinux_2_28)
 # Purpose: Provide a deterministic, GPU-free environment that matches modern manylinux (PEP 600).
 
-FROM quay.io/pypa/manylinux_2_28_x86_64 as base
+FROM quay.io/pypa/manylinux_2_28_x86_64
 
-# Choose a single Python for PR checks (fast).
+# Use the manylinux Python interpreter for correct wheel tags
 ENV PYBIN=/opt/python/cp310-cp310
 ENV PATH=${PYBIN}/bin:${PATH}
 WORKDIR /io
 
-# System packages are intentionally minimal on manylinux images.
-# We'll rely on Python wheels for dependencies.
-
-# Upgrade pip/setuptools/wheel for robustness
-RUN ${PYBIN}/bin/pip install --upgrade pip setuptools wheel
-
 # --- THIS IS THE CRITICAL FIX ---
-# Install PyTorch using --extra-index-url to keep PyPI as the primary source.
-RUN ${PYBIN}/bin/pip install \
-      torch --extra-index-url https://download.pytorch.org/whl/cpu
-
-# Install all other build and test dependencies from the standard PyPI.
-RUN ${PYBIN}/bin/pip install \
-      numpy pandas matplotlib \
+# Upgrade pip and install all build/test dependencies in a single, robust layer.
+# Crucially, we pin numpy<2.0 to ensure ABI compatibility with our PyTorch version.
+RUN ${PYBIN}/bin/pip install --upgrade pip setuptools wheel \
+ && ${PYBIN}/bin/pip install \
+      torch --extra-index-url https://download.pytorch.org/whl/cpu \
+      "numpy<2.0" \
+      pandas matplotlib \
       pybind11 ninja
 # --- END OF CRITICAL FIX ---
 
@@ -32,6 +26,6 @@ COPY . /io
 # Build the extension in editable mode for testing.
 RUN ${PYBIN}/bin/pip install -e .
 
-# Default command is a no-op; tests are invoked from the workflow via `docker run ...`
-CMD ["/bin/bash", "-lc", "python -V && pip -V"]
-# --- END OF FILE HELIOS_EMBED/Dockerfile.cpu (FINAL v1.1 - Corrected pip Index) ---
+# Default command for sanity checks
+CMD ["/bin/bash", "-lc", "python -c 'import torch; import numpy; import helios_embed; print(\"Torch:\", torch.__version__); print(\"NumPy:\", numpy.__version__); print(\"Helios Build:\", helios_embed._core.get_build_info())'"]
+# --- END OF FILE HELIOS_EMBED/Dockerfile.cpu (FINAL v1.3 - NumPy Pinned) ---
