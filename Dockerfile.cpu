@@ -1,4 +1,4 @@
-# --- START OF FILE HELIOS_EMBED/Dockerfile.cpu (FINAL v1.4 - Hardened Build) ---
+# --- START OF FILE HELIOS_EMBED/Dockerfile.cpu (FINAL v1.5 - Correct Installation) ---
 # Dockerfile.cpu — CPU-only build & test env (manylinux_2_28)
 
 FROM quay.io/pypa/manylinux_2_28_x86_64
@@ -7,28 +7,30 @@ ENV PYBIN=/opt/python/cp310-cp310
 ENV PATH=${PYBIN}/bin:${PATH}
 WORKDIR /io
 
-# Install all dependencies in a single layer for better caching.
-# Pin numpy<2.0 to ensure ABI compatibility.
+# --- THIS IS THE CRITICAL FIX ---
+# Install all dependencies in a single, robust layer.
+# This ensures pip resolves the full dependency graph correctly at once.
 RUN ${PYBIN}/bin/pip install --upgrade pip setuptools wheel \
  && ${PYBIN}/bin/pip install \
-      torch --extra-index-url https://download.pytorch.org/whl/cpu \
       "numpy<2.0" \
-      pandas matplotlib \
-      pybind11 ninja
+      pandas \
+      matplotlib \
+      pybind11 \
+      ninja \
+      torch --extra-index-url https://download.pytorch.org/whl/cpu
 
 # Copy the project source code into the container
 COPY . /io
 
-# --- THIS IS THE CRITICAL FIX ---
-# Build the extension using the direct, robust setup.py command.
-# This provides more explicit error messages than pip.
-RUN ${PYBIN}/bin/python setup.py build_ext --inplace
-
-# After building, immediately run a smoke test to verify the build succeeded.
-# If this command fails, the entire Docker build will fail, catching the error early.
-RUN ${PYBIN}/bin/python -c "from helios_embed._core import get_build_info; print('Docker build-time import successful. Build info:', get_build_info())"
+# Build the extension and install it in editable mode.
+# 'pip install -e .' is the correct command to both compile the C++ extension
+# and make the Python package importable in the current environment.
+RUN ${PYBIN}/bin/pip install -e .
 # --- END OF CRITICAL FIX ---
+
+# After the package is installed, immediately run a smoke test to verify.
+RUN ${PYBIN}/bin/python -c "from helios_embed._core import get_build_info; print('Docker build-time import successful. Build info:', get_build_info())"
 
 # Default command for external verification
 CMD ["/bin/bash", "-lc", "python -c 'import helios_embed; print(helios_embed._core.get_build_info())'"]
-# --- END OF FILE HELIOS_EMBED/Dockerfile.cpu (FINAL v1.4 - Hardened Build) ---
+# --- END OF FILE HELIOS_EMBED/Dockerfile.cpu (FINAL v1.5 - Correct Installation) ---
