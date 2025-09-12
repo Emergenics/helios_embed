@@ -1,7 +1,41 @@
-// --- START OF FILE src/helios_embed/incremental_nystrom_engine.cu (FINAL,
-// STABLE v1.1.0) ---
+// --- START OF FILE src/helios_embed/incremental_nystrom_engine.cpp (FINAL v3.3
+// - DEFINITIVELY CORRECTED) ---
 #include "incremental_nystrom_engine.h"
-#include <ATen/ATen.h>
+#include "common.h" // Includes torch headers and our HELIOS_CPU_BUILD macro
+
+// --- CPU-ONLY BUILD PATH ---
+// This code is ONLY compiled when the HELIOS_CPU_BUILD macro is defined by
+// setup.py
+#ifdef HELIOS_CPU_BUILD
+
+IncrementalNystromEngine::IncrementalNystromEngine(torch::Tensor landmarks,
+                                                   float gamma, float ridge) {
+  TORCH_CHECK(
+      false,
+      "Helios.Embed was compiled in CPU-only mode. The "
+      "'IncrementalNystromEngine' class requires CUDA and is not available.");
+}
+
+// These methods must exist to satisfy the class definition for the compiler,
+// but they will never be reached because the constructor always throws in a CPU
+// build.
+torch::Tensor IncrementalNystromEngine::build(const torch::Tensor &X) {
+  return torch::Tensor();
+}
+
+torch::Tensor
+IncrementalNystromEngine::update(const torch::Tensor &X_new_in,
+                                 const torch::Tensor &Phi_old_in) {
+  return torch::Tensor();
+}
+
+void IncrementalNystromEngine::initialize_engine() {
+  // Empty stub for CPU build
+}
+
+// --- CUDA BUILD PATH ---
+// This code is ONLY compiled when HELIOS_CPU_BUILD is NOT defined.
+#else
 
 IncrementalNystromEngine::IncrementalNystromEngine(torch::Tensor landmarks,
                                                    float gamma, float ridge) {
@@ -24,7 +58,6 @@ IncrementalNystromEngine::IncrementalNystromEngine(torch::Tensor landmarks,
 
 void IncrementalNystromEngine::initialize_engine() {
   torch::NoGradGuard no_grad;
-  // This logic is self-contained and already validated as numerically stable.
   auto K_mm = at::exp(-gamma_ * at::cdist(landmarks_, landmarks_).pow(2));
   auto K_mm_reg =
       K_mm + torch::eye(landmarks_.size(0), landmarks_.options()) * ridge_;
@@ -38,7 +71,6 @@ void IncrementalNystromEngine::initialize_engine() {
 }
 
 torch::Tensor IncrementalNystromEngine::build(const torch::Tensor &X) {
-  // The `build` method correctly re-uses the now-hardened stateless function.
   return compute_rkhs_embedding(X, landmarks_, gamma_, ridge_);
 }
 
@@ -49,13 +81,11 @@ IncrementalNystromEngine::update(const torch::Tensor &X_new_in,
   auto X_new = X_new_in.contiguous();
   auto Phi_old = Phi_old_in.contiguous();
 
-  // --- Gracefully handle empty update edge case ---
   if (X_new.size(0) == 0) {
     return Phi_old.clone();
   }
 
-  // --- SECURITY: Validation gate for the update operation ---
-  validate_inputs_stateless(X_new, landmarks_); // Re-use shared validator
+  validate_inputs_stateless(X_new, landmarks_);
   TORCH_CHECK(Phi_old.is_cuda() && Phi_old.dtype() == torch::kFloat32,
               "Phi_old must be a float32 CUDA tensor.");
   if (Phi_old.size(0) > 0) {
@@ -65,11 +95,12 @@ IncrementalNystromEngine::update(const torch::Tensor &X_new_in,
         "Feature dimension m of Phi_old must match number of landmarks.");
   }
 
-  // The correct, lean, high-performance logic.
   auto K_nm_new = at::exp(-gamma_ * at::cdist(X_new, landmarks_).pow(2));
   auto Phi_new_rows = at::mm(K_nm_new, this->K_mm_inv_sqrt_);
 
   return at::cat({Phi_old, Phi_new_rows}, 0).contiguous();
 }
-// --- END OF FILE src/helios_embed/incremental_nystrom_engine.cu (FINAL, STABLE
-// v1.1.0) ---
+
+#endif // HELIOS_CPU_BUILD
+// --- END OF FILE src/helios_embed/incremental_nystrom_engine.cpp (FINAL v3.3 -
+// DEFINITIVELY CORRECTED) ---
