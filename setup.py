@@ -45,8 +45,8 @@ absolute_source_paths = [os.path.join(source_dir, f) for f in source_files]
 
 
 # --- Versioning with PEP 440 Local Version Identifier (+cuXXX / +cpu) ---
-if can_build_cuda and has_torch_cuda_support:
-    cuda_version_str = getattr(torch.version, "cuda")
+cuda_version_str = getattr(torch.version, "cuda", None)
+if can_build_cuda and cuda_version_str:
     cuda_tag = "+cu" + cuda_version_str.replace('.', '')
     final_version = VERSION + cuda_tag
 else:
