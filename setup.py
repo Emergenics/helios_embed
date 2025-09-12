@@ -1,4 +1,4 @@
-# --- START OF FILE HELIOS_EMBED/setup.py (FINAL v2.6.0 - Production Grade) ---
+# --- START OF FILE HELIOS_EMBED/setup.py (FINAL v2.7.0 - Robust CUDA Detection) ---
 from setuptools import setup, find_packages
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension, CppExtension
 import torch
@@ -10,26 +10,28 @@ import shutil
 MODULE_NAME = "helios_embed"
 VERSION = "1.0.0"
 
-# --- Build-time CUDA Detection (Robust Method) ---
+# --- THIS IS THE CRITICAL FIX: Robust, Build-Time CUDA Detection ---
 def has_nvcc():
-    """Checks for the presence of the nvcc compiler."""
+    """Checks for the presence of the nvcc compiler in the environment."""
+    # This check is purely based on the build environment, not runtime torch.
     cuda_home = os.environ.get("CUDA_HOME")
     if cuda_home and os.path.exists(os.path.join(cuda_home, "bin", "nvcc")):
         return True
     return shutil.which("nvcc") is not None
 
-is_torch_cuda = getattr(torch.version, "cuda", None) is not None
-build_cuda = is_torch_cuda and has_nvcc()
-ExtensionType = CUDAExtension if build_cuda else CppExtension
+# The decision to build a CUDA extension depends on two things:
+# 1. Is the installed PyTorch package *aware* of CUDA?
+# 2. Is the nvcc compiler *actually available* in this build environment?
+has_torch_cuda_support = getattr(torch.version, "cuda", None) is not None
+can_build_cuda = has_torch_cuda_support and has_nvcc()
+
+ExtensionType = CUDAExtension if can_build_cuda else CppExtension
+# --- END OF CRITICAL FIX ---
+
 
 # --- Dynamic C++11 ABI Flag from PyTorch ---
 def get_torch_cxx11_abi():
-    """Returns 1 or 0 based on the PyTorch build's ABI."""
-    try:
-        return int(torch._C._GLIBCXX_USE_CXX11_ABI)
-    except ImportError:
-        # Fallback for safety, though should not happen in our controlled build env
-        return 0
+    return int(torch._C._GLIBCXX_USE_CXX11_ABI)
 
 # --- Source Files ---
 project_root = os.path.dirname(os.path.abspath(__file__))
@@ -41,28 +43,31 @@ source_files = [
 ]
 absolute_source_paths = [os.path.join(source_dir, f) for f in source_files]
 
-# --- Build-time Metadata Injection ---
-def get_build_macros():
-    torch_ver = torch.__version__.split('+')[0]
-    cuda_ver = getattr(torch.version, "cuda", None) or "cpu"
-    arch_list = os.environ.get("TORCH_CUDA_ARCH_LIST", "")
-    return [
-        ("HELIOS_BUILD_TORCH_VERSION", f'"{torch_ver}"'),
-        ("HELIOS_BUILD_CUDA_VERSION", f'"{cuda_ver}"'),
-        ("HELIOS_BUILD_ARCH_LIST", f'"{arch_list}"'),
-        ("HELIOS_BUILD_CXX11_ABI", f'"{get_torch_cxx11_abi()}"'),
-    ]
 
-# --- Versioning with PEP 440 Local Version Identifier (+cuXXX) ---
-cuda_version_str = getattr(torch.version, "cuda", None)
-if build_cuda and cuda_version_str:
+# --- Versioning with PEP 440 Local Version Identifier (+cuXXX / +cpu) ---
+if can_build_cuda and has_torch_cuda_support:
+    cuda_version_str = getattr(torch.version, "cuda")
     cuda_tag = "+cu" + cuda_version_str.replace('.', '')
     final_version = VERSION + cuda_tag
 else:
     cuda_tag = "+cpu"
     final_version = VERSION + cuda_tag
 
-print(f"--- Building {MODULE_NAME} version {final_version} (CUDA Build: {build_cuda}) ---")
+print(f"--- Building {MODULE_NAME} version {final_version} (CUDA Build: {can_build_cuda}) ---")
+
+
+# --- Build-time Metadata Injection ---
+def get_build_macros():
+    torch_ver = torch.__version__.split('+')[0]
+    # Use the version string from the build, not a runtime check
+    cuda_ver_str = cuda_version_str if can_build_cuda else "cpu"
+    arch_list = os.environ.get("TORCH_CUDA_ARCH_LIST", "")
+    return [
+        ("HELIOS_BUILD_TORCH_VERSION", f'"{torch_ver}"'),
+        ("HELIOS_BUILD_CUDA_VERSION", f'"{cuda_ver_str}"'),
+        ("HELIOS_BUILD_ARCH_LIST", f'"{arch_list}"'),
+        ("HELIOS_BUILD_CXX11_ABI", f'"{get_torch_cxx11_abi()}"'),
+    ]
 
 # --- Setup Configuration ---
 setup(
@@ -83,7 +88,7 @@ setup(
             define_macros=get_build_macros(),
             extra_compile_args={
                 'cxx': ['-O3', '-std=c++17', f'-D_GLIBCXX_USE_CXX11_ABI={get_torch_cxx11_abi()}'],
-                'nvcc': ['-O3', '--expt-relaxed-constexpr', '-std=c++17'] if build_cuda else []
+                'nvcc': ['-O3', '--expt-relaxed-constexpr', '-std=c++17'] if can_build_cuda else []
             }
         ),
     ],
@@ -92,4 +97,4 @@ setup(
     python_requires=">=3.10",
     install_requires=["torch>=2.1.2,<2.2"], 
 )
-# --- END OF FILE HELIOS_EMBED/setup.py (FINAL v2.6.0 - Production Grade) ---
+# --- END OF FILE HELIOS_EMBED/setup.py (FINAL v2.8.0 - Robust CUDA Detection) ---
