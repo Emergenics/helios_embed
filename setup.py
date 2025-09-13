@@ -1,4 +1,4 @@
-# --- START OF FILE HELIOS_EMBED/setup.py (FINAL v3.4 - DEFINITIVELY CORRECTED & COMPLETE) ---
+# --- START OF FILE HELIOS_EMBED/setup.py (FINAL v3.3 - Corrected Filenames) ---
 from setuptools import setup, find_packages
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension, CppExtension
 import torch
@@ -12,7 +12,6 @@ VERSION = "1.0.0"
 
 # --- Build-time CUDA Detection (Robust Method) ---
 def _has_nvcc():
-    """Checks for the presence of the nvcc compiler in the build environment."""
     cuda_home = os.environ.get("CUDA_HOME")
     if cuda_home and os.path.exists(os.path.join(cuda_home, "bin", "nvcc")):
         return True
@@ -25,33 +24,23 @@ can_build_cuda = force_cuda or (torch_cuda_tag_present and nvcc_available)
 
 # --- Dynamic C++11 ABI Flag from PyTorch ---
 def get_torch_cxx11_abi():
-    """Returns 1 or 0 based on the PyTorch build's ABI."""
-    try:
-        return int(torch._C._GLIBCXX_USE_CXX11_ABI)
-    except ImportError:
-        # This can happen in very stripped-down environments. Default to 0.
-        return 0
+    try: return int(torch._C._GLIBCXX_USE_CXX11_ABI)
+    except ImportError: return 0
 
-# --- Source and Header Files ---
+# --- Source Files & Extension Configuration ---
 project_root = os.path.dirname(os.path.abspath(__file__))
 source_dir = os.path.join(project_root, 'src', MODULE_NAME)
 
-# A single, unified source list for both CPU and CUDA builds.
-# Preprocessor macros inside the C++ files will handle the logic.
+# --- THIS IS THE CRITICAL FILENAME FIX ---
+# The source files are now .cpp, as they contain conditional compilation logic.
 extension_sources = [
     'helios_embed_pybind.cpp',
-    'incremental_nystrom_engine.cpp',
-    'nystrom_engine.cpp',
+    'incremental_nystrom_engine.cpp', # Corrected from .cu
+    'nystrom_engine.cpp',             # Corrected from .cu
 ]
-absolute_source_paths = [os.path.join(source_dir, f) for f in extension_sources]
+# --- END OF CRITICAL FILENAME FIX ---
 
-# Explicitly list all header files for dependency tracking.
-headers = [
-    'common.h',
-    'incremental_nystrom_engine.h',
-    'nystrom_engine.h'
-]
-absolute_header_paths = [os.path.join(source_dir, f) for f in headers]
+absolute_source_paths = [os.path.join(source_dir, f) for f in extension_sources]
 
 # --- Build Configuration ---
 if can_build_cuda:
@@ -98,14 +87,6 @@ setup(
         ExtensionType(
             name=f'{MODULE_NAME}._core', 
             sources=absolute_source_paths,
-            
-            # --- THIS IS THE CRITICAL, PREVIOUSLY OMITTED FIX ---
-            # Tell the compiler where to find our header files.
-            include_dirs=[source_dir],
-            # Explicitly list headers for better dependency tracking by the build system.
-            depends=absolute_header_paths,
-            # --- END OF CRITICAL FIX ---
-
             define_macros=define_macros,
             extra_compile_args={
                 'cxx': ['-O3', '-std=c++17', f'-D_GLIBCXX_USE_CXX11_ABI={get_torch_cxx11_abi()}'],
@@ -118,4 +99,4 @@ setup(
     python_requires=">=3.10",
     install_requires=["torch>=2.1.2,<2.2"], 
 )
-# --- END OF FILE HELIOS_EMBED/setup.py (FINAL v3.4 - DEFINITIVELY CORRECTED & COMPLETE) ---
+# --- END OF FILE HELIOS_EMBED/setup.py (FINAL v3.3 - Corrected Filenames) ---
