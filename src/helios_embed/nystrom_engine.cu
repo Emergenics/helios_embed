@@ -1,30 +1,10 @@
-// --- START OF FILE src/helios_embed/nystrom_engine.cpp (FINAL v3.3 -
-// DEFINITIVELY CORRECTED) ---
+// --- START OF FILE src/helios_embed/nystrom_engine.cu (CORRECTED BACK TO
+// v1.1.0) ---
 #include "nystrom_engine.h"
-#include "common.h" // Include our new common header
+#include <ATen/ATen.h>
 
-// --- CPU-ONLY BUILD PATH ---
-#ifdef HELIOS_CPU_BUILD
-
-void validate_inputs_stateless(const helios_api::Tensor &X,
-                               const helios_api::Tensor &Lm) {
-  TORCH_CHECK(X.dim() == 2 && Lm.dim() == 2,
-              "Input tensors must be 2-dimensional.");
-  TORCH_CHECK(Lm.size(0) > 0,
-              "Landmarks tensor must have at least one landmark (m > 0).");
-}
-
-torch::Tensor compute_rkhs_embedding(const torch::Tensor &X_in,
-                                     const torch::Tensor &landmarks_in,
-                                     float gamma, float ridge) {
-  HELIOS_CUDA_ONLY_FUNC();
-}
-
-// --- CUDA BUILD PATH ---
-#else
-
-void validate_inputs_stateless(const helios_api::Tensor &X,
-                               const helios_api::Tensor &Lm) {
+// This is the single, definitive validation function for the stateless API.
+void validate_inputs_stateless(const at::Tensor &X, const at::Tensor &Lm) {
   TORCH_CHECK(X.is_cuda() && Lm.is_cuda(),
               "Input tensors must reside on a CUDA device.");
   TORCH_CHECK(X.dtype() == torch::kFloat32 && Lm.dtype() == torch::kFloat32,
@@ -45,6 +25,7 @@ torch::Tensor compute_rkhs_embedding(const torch::Tensor &X_in,
                                      const torch::Tensor &landmarks_in,
                                      float gamma, float ridge) {
   torch::NoGradGuard no_grad;
+
   auto X = X_in.contiguous();
   auto Lm = landmarks_in.contiguous();
 
@@ -73,7 +54,5 @@ torch::Tensor compute_rkhs_embedding(const torch::Tensor &X_in,
   auto K_mm_inv_sqrt = eigenvectors.mm(S_inv_sqrt).mm(eigenvectors.t());
   return at::mm(K_nm, K_mm_inv_sqrt).contiguous();
 }
-
-#endif // HELIOS_CPU_BUILD
-       // --- END OF FILE src/helios_embed/nystrom_engine.cpp (FINAL v3.3 -
-       // DEFINITIVELY CORRECTED) ---
+// --- END OF FILE src/helios_embed/nystrom_engine.cu (CORRECTED BACK TO v1.1.0)
+// ---

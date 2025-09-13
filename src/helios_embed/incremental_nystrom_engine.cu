@@ -1,45 +1,10 @@
-// --- START OF FILE src/helios_embed/incremental_nystrom_engine.cpp (FINAL v3.3
-// - DEFINITIVELY CORRECTED) ---
+// --- START OF FILE src/helios_embed/incremental_nystrom_engine.cu (CORRECTED
+// BACK TO v1.1.0) ---
 #include "incremental_nystrom_engine.h"
-#include "common.h" // Includes torch headers and our HELIOS_CPU_BUILD macro
-
-// --- CPU-ONLY BUILD PATH ---
-// This code is ONLY compiled when the HELIOS_CPU_BUILD macro is defined by
-// setup.py
-#ifdef HELIOS_CPU_BUILD
+#include <ATen/ATen.h>
 
 IncrementalNystromEngine::IncrementalNystromEngine(torch::Tensor landmarks,
                                                    float gamma, float ridge) {
-  TORCH_CHECK(
-      false,
-      "Helios.Embed was compiled in CPU-only mode. The "
-      "'IncrementalNystromEngine' class requires CUDA and is not available.");
-}
-
-// These methods must exist to satisfy the class definition for the compiler,
-// but they will never be reached because the constructor always throws in a CPU
-// build.
-torch::Tensor IncrementalNystromEngine::build(const torch::Tensor &X) {
-  return torch::Tensor();
-}
-
-torch::Tensor
-IncrementalNystromEngine::update(const torch::Tensor &X_new_in,
-                                 const torch::Tensor &Phi_old_in) {
-  return torch::Tensor();
-}
-
-void IncrementalNystromEngine::initialize_engine() {
-  // Empty stub for CPU build
-}
-
-// --- CUDA BUILD PATH ---
-// This code is ONLY compiled when HELIOS_CPU_BUILD is NOT defined.
-#else
-
-IncrementalNystromEngine::IncrementalNystromEngine(torch::Tensor landmarks,
-                                                   float gamma, float ridge) {
-  // --- SECURITY: Immediate validation in constructor ---
   TORCH_CHECK(landmarks.is_cuda(), "Landmarks must be a CUDA tensor.");
   TORCH_CHECK(landmarks.dtype() == torch::kFloat32,
               "Landmarks must be a float32 tensor.");
@@ -85,7 +50,7 @@ IncrementalNystromEngine::update(const torch::Tensor &X_new_in,
     return Phi_old.clone();
   }
 
-  validate_inputs_stateless(X_new, landmarks_);
+  validate_inputs_stateless(X_new, landmarks_); // Re-use shared validator
   TORCH_CHECK(Phi_old.is_cuda() && Phi_old.dtype() == torch::kFloat32,
               "Phi_old must be a float32 CUDA tensor.");
   if (Phi_old.size(0) > 0) {
@@ -100,7 +65,5 @@ IncrementalNystromEngine::update(const torch::Tensor &X_new_in,
 
   return at::cat({Phi_old, Phi_new_rows}, 0).contiguous();
 }
-
-#endif // HELIOS_CPU_BUILD
-// --- END OF FILE src/helios_embed/incremental_nystrom_engine.cpp (FINAL v3.3 -
-// DEFINITIVELY CORRECTED) ---
+// --- END OF FILE src/helios_embed/incremental_nystrom_engine.cu (CORRECTED
+// BACK TO v1.1.0) ---
