@@ -1,0 +1,34 @@
+# --- START OF FILE HELIOS_EMBED/Dockerfile.cpu (FINAL v3.1 - Expert Corrected) ---
+# Dockerfile.cpu — CPU-only build & test env using manylinux2014 for ABI compatibility.
+# This is the correct environment for the PyTorch 2.1.2+cpu wheel.
+
+FROM quay.io/pypa/manylinux2014_x86_64
+
+# Use the manylinux Python 3.10 interpreter for correct wheel tags.
+ENV PYBIN=/opt/python/cp310-cp310
+ENV PATH=${PYBIN}/bin:${PATH}
+WORKDIR /io
+
+# --- THIS IS THE EXPERT-VALIDATED DEPENDENCY INSTALLATION ---
+# Upgrade pip and install all build/test dependencies in a single, robust layer.
+# We explicitly pin numpy<2.0 and the correct, ABI-compatible PyTorch version.
+RUN ${PYBIN}/bin/pip install --upgrade pip setuptools wheel \
+ && ${PYBIN}/bin/pip install \
+      "torch==2.1.2+cpu" --extra-index-url https://download.pytorch.org/whl/cpu \
+      "numpy<2.0" \
+      pandas matplotlib \
+      pybind11 ninja
+# --- END OF EXPERT-VALIDATED DEPENDENCY INSTALLATION ---
+
+# Copy the project source code into the container
+COPY . /io
+
+# Build the extension and install it in editable mode.
+RUN ${PYBIN}/bin/pip install --no-build-isolation -e .
+
+# After the package is installed, immediately run a smoke test to verify.
+RUN ${PYBIN}/bin/python -c "from helios_embed._core import get_build_info; print('Docker build-time import successful. Build info:', get_build_info())"
+
+# Default command for external verification
+CMD ["/bin/bash", "-lc", "python -c 'import helios_embed; print(helios_embed._core.get_build_info())'"]
+# --- END OF FILE HELIOS_EMBED/Dockerfile.cpu (FINAL v3.1 - Expert Corrected) ---
