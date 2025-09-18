@@ -107,19 +107,7 @@ matplotlib
 # Optional, but recommended for development
 pybind11
 ninja
-# --- END OF FILE HELIOS_EMBED/requirements-test.txt ---
 ```
-
-#### **Action 2: Update the `README.md` with Development Setup Instructions**
-
-We need to add a "Developer Setup" section to our `README.md` to instruct contributors on how to correctly set up their environment for testing.
-
-**File to Modify:** `HELIOS_EMBED/README.md`
-
-*   **Action:** Add the following new section to the end of your `README.md` file.
-
-```markdown
-# --- ADD THIS SECTION TO README.md ---
 
 ## 🛠️ For Developers: Setting Up a Test Environment
 
@@ -150,7 +138,6 @@ python setup.py build_ext --inplace
 ```bash
 python run_tests.py
 ```
-
 
 ## 📚 Full Documentation
 
