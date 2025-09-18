@@ -1,0 +1,80 @@
+name: GPU CI (CUDA 11.8, non-blocking)
+
+on:
+  push:
+    branches: [ main ]       # quick validation right after merges
+  schedule:
+    - cron: "15 3 * * *"     # nightly @ 03:15 UTC
+  workflow_dispatch: {}       # manual runs
+
+concurrency:
+  # keep latest signal; cancel superseded runs
+  group: gpu-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gpu-tests:
+    # Target your self-hosted GPU box only
+    runs-on: [self-hosted, linux, x64, gpu, cuda-11-8, rtx2060]
+    # Advisory by default: fail correctness/build; perf-only warnings do not fail yet
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Show runner & GPU environment
+        run: |
+          uname -a || true
+          nvidia-smi || true
+          docker --version
+
+      - name: Pull pinned CUDA 11.8 devel image
+        run: docker pull nvidia/cuda:11.8.0-devel-ubuntu22.04
+
+      - name: Build GPU test image (pinned toolchain)
+        run: |
+          docker build \
+            -f Dockerfile.gpu \
+            -t helios-embed:cu118 \
+            .
+
+      - name: Correctness & reliability tests
+        run: |
+          docker run --rm --gpus all -v "$PWD":/ws -w /ws helios-embed:cu118 \
+            bash -lc '
+              python - <<PY
+import torch, json, subprocess, os
+print("Torch:", torch.__version__, "CUDA:", torch.version.cuda, "is_available:", torch.cuda.is_available())
+PY
+              # run the standard suite + long tests on GPU lane
+              python HELIOS_EMBED/run_tests.py --run-long-tests
+            '
+
+      - name: Performance smoke vs baseline (advisory)
+        continue-on-error: true       # advisory for now
+        run: |
+          docker run --rm --gpus all -v "$PWD":/ws -w /ws helios-embed:cu118 \
+            bash -lc '
+              python tools/compare_perf.py \
+                --bench tests/benchmark_micro.py \
+                --baseline tools/performance_baseline_v1.csv \
+                --threshold 0.05
+            '
+
+      - name: Capture diagnostics & artifacts
+        if: always()
+        run: |
+          mkdir -p artifacts
+          nvidia-smi -q > artifacts/nvidia-smi.txt || true
+          docker image inspect nvidia/cuda:11.8.0-devel-ubuntu22.04 > artifacts/cuda-image.json || true
+        shell: bash
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gpu-ci-${{ github.run_id }}
+          path: artifacts

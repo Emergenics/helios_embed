@@ -1,0 +1,37 @@
+# --- START OF FILE HELIOS_EMBED/Dockerfile.gpu ---
+# CUDA 11.8 "devel" includes nvcc/toolchain needed for your C++/CUDA build
+FROM nvidia/cuda:11.8.0-devel-ubuntu22.04
+
+# Harmless guard against a known, rare symlink issue in some 11.8 images.
+RUN ln -sfn /usr/local/cuda-11.8 /usr/local/cuda || true
+
+# Minimal build dependencies
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      python3.10 python3.10-dev python3.10-venv python3-pip build-essential git ninja-build \
+      && rm -rf /var/lib/apt/lists/*
+
+# Use a generic python3 symlink for convenience
+RUN ln -s /usr/bin/python3.10 /usr/bin/python3
+
+# --- Install Python dependencies ---
+RUN python3 -m pip install --upgrade pip setuptools wheel
+# Install PyTorch with the correct CUDA 11.8 variant
+RUN python3 -m pip install --index-url https://download.pytorch.org/whl/cu118 \
+      torch==2.1.2+cu118 torchvision torchaudio
+# Install our project's test dependencies
+COPY requirements-test.txt .
+RUN python3 -m pip install -r requirements-test.txt
+
+# --- Build-time knobs (can be overridden by the CI workflow) ---
+ENV TORCH_CUDA_ARCH_LIST=7.5
+ENV MAX_JOBS=8
+
+# Set a working directory
+WORKDIR /ws
+
+# Copy project source for build/test operations inside the container
+COPY . /ws
+
+# Sanity print by default
+CMD ["/bin/bash", "-lc", "python3 -c \"import torch; print('Torch:', torch.__version__, 'CUDA:', torch.version.cuda, 'Available:', torch.cuda.is_available())\""]
+# --- END OF FILE HELIOS_EMBED/Dockerfile.gpu ---
