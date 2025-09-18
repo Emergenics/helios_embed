@@ -94,34 +94,22 @@ print("✅ Success! The streaming engine is bit-perfectly accurate.")
 ```
 
 ### 4. Developer Notes
-# Dependencies required for running the Helios.Embed test and benchmark suite.
+### Dependencies required for running the Helios.Embed test and benchmark suite.
 
-# Core runtime dependency (for clarity)
+### Core runtime dependency (for clarity)
 torch>=2.1.2,<2.2
 
-# Test suite dependencies
+### Test suite dependencies
 numpy
 pandas
 matplotlib
 
-# Optional, but recommended for development
+### Optional, but recommended for development
 pybind11
 ninja
-# --- END OF FILE HELIOS_EMBED/requirements-test.txt ---
 ```
 
-#### **Action 2: Update the `README.md` with Development Setup Instructions**
-
-We need to add a "Developer Setup" section to our `README.md` to instruct contributors on how to correctly set up their environment for testing.
-
-**File to Modify:** `HELIOS_EMBED/README.md`
-
-*   **Action:** Add the following new section to the end of your `README.md` file.
-
-```markdown
-# --- ADD THIS SECTION TO README.md ---
-
-## 🛠️ For Developers: Setting Up a Test Environment
+### 🛠️ For Developers: Setting Up a Test Environment
 
 To run the full test and benchmark suite, you need to install the test-time dependencies in addition to the core package.
 
@@ -150,7 +138,6 @@ python setup.py build_ext --inplace
 ```bash
 python run_tests.py
 ```
-
 
 ## 📚 Full Documentation
 
